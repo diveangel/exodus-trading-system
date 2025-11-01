@@ -12,9 +12,17 @@ from app.db.base import Base
 from app.config import settings
 
 # Import all models here to ensure they are registered with Base.metadata
-# from app.models.user import User
-# from app.models.strategy import Strategy
-# etc...
+from app.models import (
+    User,
+    Strategy,
+    Signal,
+    Order,
+    Trade,
+    Holding,
+    MarketData,
+    BacktestResult,
+    BacktestTrade,
+)
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

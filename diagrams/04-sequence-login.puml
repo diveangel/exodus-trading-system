@@ -1,0 +1,64 @@
+@startuml Sequence Diagram - User Login
+title 사용자 로그인 플로우
+
+actor User as user
+participant "Web App\n(Next.js)" as web
+participant "API Gateway" as gateway
+participant "Auth API" as auth
+participant "User Service" as userService
+participant "Database" as db
+participant "Redis" as redis
+
+user -> web: 로그인 페이지 접속
+activate web
+
+user -> web: 이메일, 비밀번호 입력
+web -> gateway: POST /api/v1/auth/login\n{email, password}
+activate gateway
+
+gateway -> auth: 로그인 요청
+activate auth
+
+auth -> userService: 사용자 조회 및 검증
+activate userService
+
+userService -> db: SELECT * FROM users\nWHERE email = ?
+activate db
+db --> userService: User 데이터
+deactivate db
+
+userService -> userService: 비밀번호 검증\n(bcrypt.verify)
+
+alt 비밀번호 일치
+    userService --> auth: 사용자 정보
+    deactivate userService
+
+    auth -> auth: Access Token 생성\n(JWT, 1시간 유효)
+    auth -> auth: Refresh Token 생성\n(JWT, 7일 유효)
+
+    auth -> redis: Refresh Token 저장\nKEY: refresh:user_id\nTTL: 7일
+    activate redis
+    redis --> auth: OK
+    deactivate redis
+
+    auth --> gateway: {access_token, refresh_token, user}
+    deactivate auth
+    gateway --> web: 200 OK\n{access_token, refresh_token, user}
+    deactivate gateway
+
+    web -> web: 토큰 저장\n(localStorage / Cookie)
+    web -> user: 대시보드로 리디렉션
+    deactivate web
+
+else 비밀번호 불일치
+    userService --> auth: 인증 실패
+    deactivate userService
+    auth --> gateway: 401 Unauthorized
+    deactivate auth
+    gateway --> web: 401 Unauthorized
+    deactivate gateway
+    web -> user: 에러 메시지 표시
+    deactivate web
+end
+
+@enduml

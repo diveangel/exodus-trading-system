@@ -1,0 +1,79 @@
+@startuml Deployment Diagram
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Deployment.puml
+
+LAYOUT_WITH_LEGEND()
+
+title Deployment Diagram - Docker Compose Architecture
+
+Deployment_Node(docker_host, "Docker Host", "Linux/macOS/Windows") {
+
+    Deployment_Node(docker_network, "exodus-network", "Docker Network") {
+
+        Deployment_Node(nginx_container, "nginx Container", "Docker Container") {
+            Container(nginx, "Nginx", "Reverse Proxy", "리버스 프록시\nHTTPS 종료\n정적 파일 서빙")
+        }
+
+        Deployment_Node(frontend_container, "frontend Container", "Docker Container") {
+            Container(frontend, "Next.js App", "Node.js", "프론트엔드 애플리케이션\nPort: 3000")
+        }
+
+        Deployment_Node(backend_container, "backend Container", "Docker Container") {
+            Container(backend, "FastAPI", "Python 3.11", "백엔드 API 서버\nPort: 8000")
+        }
+
+        Deployment_Node(worker_container, "worker Container", "Docker Container") {
+            Container(worker, "Celery Worker", "Python 3.11", "백그라운드 작업 처리\n- 자동매매\n- 데이터 수집")
+        }
+
+        Deployment_Node(postgres_container, "postgres Container", "Docker Container") {
+            ContainerDb(postgres, "PostgreSQL 15", "Database", "영구 데이터 저장\nPort: 5432")
+        }
+
+        Deployment_Node(redis_container, "redis Container", "Docker Container") {
+            ContainerDb(redis, "Redis 7", "Cache & Queue", "캐시 및 Task Queue\nPort: 6379")
+        }
+    }
+
+    Deployment_Node(volumes, "Docker Volumes", "Persistent Storage") {
+        ContainerDb(postgres_volume, "postgres_data", "Volume", "데이터베이스 파일")
+        ContainerDb(redis_volume, "redis_data", "Volume", "Redis 데이터")
+    }
+}
+
+Deployment_Node(client, "Client Device", "Browser") {
+    Container(browser, "Web Browser", "Chrome, Safari, etc.", "사용자 인터페이스")
+}
+
+System_Ext(kis_api, "한국투자증권 OpenAPI", "외부 API")
+
+' Relationships
+Rel(browser, nginx, "HTTPS 요청", "Port 443")
+Rel(nginx, frontend, "HTTP 요청", "Port 3000")
+Rel(nginx, backend, "API 요청", "Port 8000")
+Rel(frontend, backend, "API 호출", "REST/WebSocket")
+
+Rel(backend, postgres, "SQL", "Port 5432")
+Rel(backend, redis, "캐시/세션", "Port 6379")
+Rel(backend, kis_api, "시장 데이터 조회", "HTTPS")
+
+Rel(worker, postgres, "SQL", "Port 5432")
+Rel(worker, redis, "Task Queue", "Port 6379")
+Rel(worker, kis_api, "주문 실행", "HTTPS")
+
+Rel(postgres, postgres_volume, "데이터 저장", "File System")
+Rel(redis, redis_volume, "데이터 저장", "File System")
+
+note right of docker_host
+  **실행 명령**
+  $ docker-compose up -d
+
+  **컨테이너 목록**
+  - exodus-nginx (Port: 80, 443)
+  - exodus-frontend (Port: 3000)
+  - exodus-backend (Port: 8000)
+  - exodus-worker
+  - exodus-postgres (Port: 5432)
+  - exodus-redis (Port: 6379)
+end note
+
+@enduml

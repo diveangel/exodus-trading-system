@@ -1,0 +1,110 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: exodus-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-exodus}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-exodus_password}
+      POSTGRES_DB: ${POSTGRES_DB:-exodus_trading}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-exodus}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - exodus-network
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: exodus-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - exodus-network
+
+  # Backend API
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: exodus-backend
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-exodus}:${POSTGRES_PASSWORD:-exodus_password}@postgres:5432/${POSTGRES_DB:-exodus_trading}
+      REDIS_URL: redis://redis:6379/0
+      SECRET_KEY: ${SECRET_KEY}
+      DEBUG: ${DEBUG:-false}
+      KIS_APP_KEY: ${KIS_APP_KEY}
+      KIS_APP_SECRET: ${KIS_APP_SECRET}
+      KIS_ACCOUNT_NUMBER: ${KIS_ACCOUNT_NUMBER}
+      KIS_ACCOUNT_CODE: ${KIS_ACCOUNT_CODE}
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+      - backend_logs:/app/logs
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - exodus-network
+    restart: unless-stopped
+
+  # Frontend Web Application
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: exodus-frontend
+    environment:
+      NEXT_PUBLIC_API_URL: http://backend:8000
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    networks:
+      - exodus-network
+    restart: unless-stopped
+
+  # Nginx Reverse Proxy
+  nginx:
+    image: nginx:alpine
+    container_name: exodus-nginx
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - backend
+      - frontend
+    networks:
+      - exodus-network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  backend_logs:
+    driver: local
+
+networks:
+  exodus-network:
+    driver: bridge

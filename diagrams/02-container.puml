@@ -1,0 +1,47 @@
+@startuml Container Diagram
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml
+
+LAYOUT_WITH_LEGEND()
+
+title Container Diagram - Exodus Trading System
+
+Person(investor, "투자자", "시스템 트레이딩 사용자")
+Person(admin, "관리자", "시스템 관리자")
+
+System_Boundary(exodus, "Exodus Trading System") {
+    Container(web_app, "Web Application", "Next.js, React, TypeScript", "사용자 인터페이스 제공\n- 대시보드\n- 전략 관리\n- 백테스트\n- 거래 이력")
+
+    Container(api, "API Server", "FastAPI, Python", "REST API 제공\nJWT 인증/인가\nWebSocket 서버")
+
+    Container(worker, "Background Worker", "Celery, APScheduler", "백그라운드 작업 실행\n- 자동매매\n- 데이터 수집\n- 백테스트")
+
+    ContainerDb(db, "Database", "PostgreSQL", "영구 데이터 저장\n- 사용자 정보\n- 거래 이력\n- 전략 정보")
+
+    ContainerDb(cache, "Cache & Queue", "Redis", "캐싱 및 메시지 브로커\n- 세션 저장\n- Task Queue\n- Rate Limiting")
+
+    Container(nginx, "Reverse Proxy", "Nginx", "리버스 프록시\nHTTPS 종료\n정적 파일 서빙")
+}
+
+System_Ext(kis_api, "한국투자증권 OpenAPI", "시장 데이터 및 주문 실행")
+System_Ext(email, "이메일 서비스", "알림 발송")
+
+Rel(investor, nginx, "웹 브라우저로 접속", "HTTPS")
+Rel(admin, nginx, "관리 페이지 접속", "HTTPS")
+
+Rel(nginx, web_app, "포워딩", "HTTP")
+Rel(nginx, api, "포워딩", "HTTP")
+
+Rel(web_app, api, "API 호출", "REST API, WebSocket/JSON")
+
+Rel(api, db, "읽기/쓰기", "SQL/TCP")
+Rel(api, cache, "읽기/쓰기", "Redis Protocol")
+Rel(api, kis_api, "시장 데이터 조회, 주문 실행", "REST API, WebSocket")
+
+Rel(worker, db, "읽기/쓰기", "SQL/TCP")
+Rel(worker, cache, "Task Queue", "Redis Protocol")
+Rel(worker, kis_api, "시장 데이터 수집, 주문 실행", "REST API")
+Rel(worker, email, "알림 발송", "SMTP")
+
+Rel(api, worker, "Task 등록", "Celery/Redis")
+
+@enduml

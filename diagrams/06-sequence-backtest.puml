@@ -1,0 +1,138 @@
+@startuml Sequence Diagram - Backtest
+title 백테스트 실행 플로우
+
+actor User as user
+participant "Web App" as web
+participant "API Gateway" as gateway
+participant "Backtest API" as backtestAPI
+participant "Background Worker" as worker
+participant "Backtest Engine" as engine
+participant "Strategy Manager" as strategyManager
+participant "Market Data Service" as marketService
+participant "Database" as db
+participant "Redis" as redis
+participant "WebSocket Server" as ws
+
+user -> web: 백테스트 설정\n- 전략 선택\n- 기간 설정\n- 초기 자금
+activate web
+
+web -> gateway: POST /api/v1/backtest/run\n{strategy_id, start_date, end_date, initial_capital}
+activate gateway
+
+gateway -> backtestAPI: 백테스트 요청
+activate backtestAPI
+
+backtestAPI -> db: 전략 정보 조회
+activate db
+db --> backtestAPI: Strategy
+deactivate db
+
+backtestAPI -> db: 백테스트 기록 생성\n(status: pending)
+activate db
+db --> backtestAPI: Backtest ID
+deactivate db
+
+backtestAPI -> redis: Celery Task 등록
+activate redis
+redis --> backtestAPI: Task ID
+deactivate redis
+
+backtestAPI --> gateway: 202 Accepted\n{backtest_id, task_id}
+deactivate backtestAPI
+gateway --> web: 202 Accepted
+deactivate gateway
+
+web -> user: "백테스트 시작됨" 메시지
+web -> ws: WebSocket 구독\n(backtest_id)
+activate ws
+
+== 백그라운드 작업 ==
+
+worker -> redis: Task 가져오기
+activate worker
+activate redis
+redis --> worker: Backtest Task
+deactivate redis
+
+worker -> engine: 백테스트 실행
+activate engine
+
+engine -> db: 전략 및 파라미터 로드
+activate db
+db --> engine: Strategy, Parameters
+deactivate db
+
+engine -> marketService: 과거 시장 데이터 조회\n(start_date ~ end_date)
+activate marketService
+
+marketService -> db: 시계열 데이터 조회
+activate db
+db --> marketService: Historical Market Data
+deactivate db
+
+marketService --> engine: Market Data (OHLCV)
+deactivate marketService
+
+engine -> engine: 초기화\n- Portfolio 생성\n- 초기 자금 설정
+
+loop 날짜별 시뮬레이션 (start_date ~ end_date)
+    engine -> strategyManager: 신호 생성\n(date, market_data, portfolio)
+    activate strategyManager
+
+    strategyManager -> strategyManager: 전략 로직 실행\n- 기술적 지표 계산\n- 매매 조건 검증
+
+    strategyManager --> engine: Signal (BUY/SELL/HOLD)
+    deactivate strategyManager
+
+    alt 매수/매도 신호
+        engine -> engine: 가상 주문 실행\n- 수수료 계산\n- 세금 계산\n- Portfolio 업데이트
+
+        engine -> engine: 거래 기록 저장\n(내부 메모리)
+    end
+
+    engine -> engine: 일일 성과 계산\n- 수익률\n- Drawdown\n- Portfolio Value
+end
+
+engine -> engine: 최종 성과 지표 계산\n- 총 수익률\n- 연환산 수익률\n- MDD\n- Sharpe Ratio\n- 승률, 손익비
+
+engine -> db: 백테스트 결과 저장\n(status: completed)
+activate db
+db --> engine: OK
+deactivate db
+
+engine --> worker: 백테스트 완료
+deactivate engine
+
+worker -> ws: 완료 알림 전송
+ws -> web: WebSocket Push\n"백테스트 완료: {backtest_id}"
+deactivate ws
+deactivate worker
+
+== 결과 조회 ==
+
+web -> user: "백테스트 완료" 알림
+user -> web: 결과 페이지로 이동
+
+web -> gateway: GET /api/v1/backtest/results/{backtest_id}
+activate gateway
+
+gateway -> backtestAPI: 결과 조회
+activate backtestAPI
+
+backtestAPI -> db: 백테스트 결과 조회
+activate db
+db --> backtestAPI: Backtest Results
+deactivate db
+
+backtestAPI --> gateway: 200 OK\n{results, metrics, trades}
+deactivate backtestAPI
+
+gateway --> web: Backtest Results
+deactivate gateway
+
+web -> web: 결과 시각화\n- 누적 수익률 차트\n- Drawdown 차트\n- 거래 내역 테이블
+
+web -> user: 백테스트 결과 표시
+deactivate web
+
+@enduml

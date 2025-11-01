@@ -1,0 +1,21 @@
+@startuml System Context Diagram
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Context.puml
+
+LAYOUT_WITH_LEGEND()
+
+title System Context Diagram - Exodus Trading System
+
+Person(investor, "투자자", "시스템 트레이딩을 수행하는 개인 투자자")
+Person(admin, "관리자", "시스템을 관리하는 관리자")
+
+System(exodus, "Exodus Trading System", "퀀트 투자 기반 자동매매 시스템\n- 투자 전략 관리\n- 백테스트\n- 자동매매 실행\n- 포트폴리오 관리")
+
+System_Ext(kis_api, "한국투자증권 OpenAPI", "시장 데이터 제공 및\n주식 주문 실행")
+System_Ext(email, "이메일 서비스", "알림 발송\n(Gmail SMTP, SendGrid)")
+
+Rel(investor, exodus, "사용", "HTTPS, WebSocket")
+Rel(admin, exodus, "관리", "HTTPS")
+Rel(exodus, kis_api, "시장 데이터 조회,\n주문 실행", "REST API, WebSocket")
+Rel(exodus, email, "알림 발송", "SMTP")
+
+@enduml

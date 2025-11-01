@@ -1,0 +1,95 @@
+@startuml Component Diagram - Backend API
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Component.puml
+
+LAYOUT_WITH_LEGEND()
+
+title Component Diagram - Backend API Server
+
+Container(web_app, "Web Application", "Next.js, React", "사용자 인터페이스")
+
+Container_Boundary(api, "API Server (FastAPI)") {
+    Component(api_gateway, "API Gateway", "FastAPI Router", "라우팅 및 미들웨어\n- CORS\n- Rate Limiting\n- Logging")
+
+    Component(auth_api, "Auth API", "FastAPI Endpoint", "인증/인가 API\n- 회원가입\n- 로그인\n- 토큰 갱신")
+
+    Component(account_api, "Account API", "FastAPI Endpoint", "계좌 관리 API\n- 잔액 조회\n- 보유 종목\n- 거래 이력")
+
+    Component(strategy_api, "Strategy API", "FastAPI Endpoint", "전략 관리 API\n- CRUD\n- 전략 실행")
+
+    Component(backtest_api, "Backtest API", "FastAPI Endpoint", "백테스트 API")
+
+    Component(order_api, "Order API", "FastAPI Endpoint", "주문 API")
+
+    Component(market_api, "Market API", "FastAPI Endpoint", "시장 데이터 API")
+
+    Component(websocket_server, "WebSocket Server", "FastAPI WebSocket", "실시간 데이터 전송")
+
+    Boundary(core, "Core Layer") {
+        Component(strategy_manager, "Strategy Manager", "Python Module", "전략 실행 관리")
+        Component(signal_generator, "Signal Generator", "Python Module", "매매 신호 생성")
+        Component(order_executor, "Order Executor", "Python Module", "주문 실행")
+        Component(risk_manager, "Risk Manager", "Python Module", "리스크 관리")
+        Component(backtest_engine, "Backtest Engine", "Python Module", "백테스트 엔진")
+    }
+
+    Boundary(services, "Service Layer") {
+        Component(user_service, "User Service", "Python Module", "사용자 관리")
+        Component(account_service, "Account Service", "Python Module", "계좌 관리")
+        Component(market_service, "Market Data Service", "Python Module", "시장 데이터 수집")
+        Component(kis_service, "KIS API Service", "Python Module", "한국투자증권 API 클라이언트")
+        Component(notification_service, "Notification Service", "Python Module", "알림 발송")
+    }
+
+    Component(auth_middleware, "Auth Middleware", "JWT Handler", "JWT 검증 및 인가")
+    Component(db_session, "DB Session", "SQLAlchemy", "데이터베이스 세션 관리")
+}
+
+ContainerDb(db, "PostgreSQL", "데이터베이스")
+ContainerDb(cache, "Redis", "캐시 & 큐")
+System_Ext(kis_api, "한국투자증권 OpenAPI")
+
+' Web App -> API Gateway
+Rel(web_app, api_gateway, "HTTP Request", "REST API, WebSocket")
+
+' API Gateway -> API Endpoints
+Rel(api_gateway, auth_api, "라우팅")
+Rel(api_gateway, account_api, "라우팅")
+Rel(api_gateway, strategy_api, "라우팅")
+Rel(api_gateway, backtest_api, "라우팅")
+Rel(api_gateway, order_api, "라우팅")
+Rel(api_gateway, market_api, "라우팅")
+Rel(api_gateway, websocket_server, "WebSocket 연결")
+
+' Auth Middleware
+Rel(api_gateway, auth_middleware, "인증 검증")
+
+' API -> Services
+Rel(auth_api, user_service, "사용자 관리")
+Rel(account_api, account_service, "계좌 조회")
+Rel(strategy_api, strategy_manager, "전략 실행")
+Rel(backtest_api, backtest_engine, "백테스트 실행")
+Rel(order_api, order_executor, "주문 실행")
+Rel(market_api, market_service, "시장 데이터 조회")
+
+' Core -> Services
+Rel(strategy_manager, signal_generator, "신호 생성 요청")
+Rel(signal_generator, order_executor, "주문 실행 요청")
+Rel(order_executor, risk_manager, "리스크 검증")
+Rel(order_executor, kis_service, "주문 전송")
+Rel(backtest_engine, market_service, "과거 데이터 조회")
+
+' Services -> External
+Rel(kis_service, kis_api, "API 호출")
+Rel(market_service, kis_api, "시장 데이터 조회")
+
+' Services -> DB
+Rel(user_service, db_session, "사용")
+Rel(account_service, db_session, "사용")
+Rel(market_service, db_session, "사용")
+Rel(strategy_manager, db_session, "사용")
+Rel(backtest_engine, db_session, "사용")
+
+Rel(db_session, db, "SQL")
+Rel(market_service, cache, "캐싱")
+
+@enduml

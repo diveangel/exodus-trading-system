@@ -1,0 +1,215 @@
+@startuml Database ER Diagram
+!define Table(name,desc) class name as "desc" << (T,#FFAAAA) >>
+!define primary_key(x) <b>PK: x</b>
+!define foreign_key(x) <color:blue>FK: x</color>
+!define unique(x) <color:green>UQ: x</color>
+
+title Database ER Diagram - Exodus Trading System
+
+' 사용자 관리
+entity "users" as users {
+  primary_key(id): UUID
+  ---
+  unique(email): VARCHAR(255)
+  hashed_password: VARCHAR(255)
+  full_name: VARCHAR(100)
+  role: ENUM('admin', 'user', 'viewer')
+  is_active: BOOLEAN
+  kis_app_key: VARCHAR(255) - encrypted
+  kis_secret_key: VARCHAR(255) - encrypted
+  kis_account_number: VARCHAR(50)
+  created_at: TIMESTAMP
+  updated_at: TIMESTAMP
+}
+
+' 투자 전략
+entity "strategies" as strategies {
+  primary_key(id): UUID
+  ---
+  foreign_key(user_id): UUID
+  name: VARCHAR(100)
+  description: TEXT
+  strategy_type: ENUM('momentum', 'mean_reversion', 'factor')
+  parameters: JSONB
+  is_active: BOOLEAN
+  created_at: TIMESTAMP
+  updated_at: TIMESTAMP
+}
+
+' 매매 신호
+entity "signals" as signals {
+  primary_key(id): UUID
+  ---
+  foreign_key(strategy_id): UUID
+  symbol: VARCHAR(10)
+  signal_type: ENUM('buy', 'sell', 'hold')
+  confidence_score: DECIMAL(5,4)
+  price: DECIMAL(12,2)
+  quantity: INTEGER
+  reason: JSONB
+  is_executed: BOOLEAN
+  created_at: TIMESTAMP
+}
+
+' 주문
+entity "orders" as orders {
+  primary_key(id): UUID
+  ---
+  foreign_key(user_id): UUID
+  foreign_key(signal_id): UUID (nullable)
+  symbol: VARCHAR(10)
+  order_type: ENUM('market', 'limit', 'stop')
+  side: ENUM('buy', 'sell')
+  quantity: INTEGER
+  price: DECIMAL(12,2)
+  status: ENUM('pending', 'submitted', 'filled', 'partially_filled', 'cancelled', 'rejected')
+  filled_quantity: INTEGER
+  filled_price: DECIMAL(12,2)
+  kis_order_id: VARCHAR(50)
+  commission: DECIMAL(12,2)
+  tax: DECIMAL(12,2)
+  created_at: TIMESTAMP
+  updated_at: TIMESTAMP
+}
+
+' 체결
+entity "trades" as trades {
+  primary_key(id): UUID
+  ---
+  foreign_key(order_id): UUID
+  foreign_key(user_id): UUID
+  symbol: VARCHAR(10)
+  side: ENUM('buy', 'sell')
+  quantity: INTEGER
+  price: DECIMAL(12,2)
+  commission: DECIMAL(12,2)
+  tax: DECIMAL(12,2)
+  total_amount: DECIMAL(12,2)
+  executed_at: TIMESTAMP
+  created_at: TIMESTAMP
+}
+
+' 보유 종목
+entity "holdings" as holdings {
+  primary_key(id): UUID
+  ---
+  foreign_key(user_id): UUID
+  symbol: VARCHAR(10)
+  company_name: VARCHAR(100)
+  quantity: INTEGER
+  average_price: DECIMAL(12,2)
+  current_price: DECIMAL(12,2)
+  total_cost: DECIMAL(12,2)
+  current_value: DECIMAL(12,2)
+  unrealized_pnl: DECIMAL(12,2)
+  unrealized_pnl_pct: DECIMAL(8,4)
+  updated_at: TIMESTAMP
+}
+
+' 시장 데이터
+entity "market_data" as market_data {
+  primary_key(id): BIGINT
+  ---
+  symbol: VARCHAR(10)
+  timestamp: TIMESTAMP
+  open: DECIMAL(12,2)
+  high: DECIMAL(12,2)
+  low: DECIMAL(12,2)
+  close: DECIMAL(12,2)
+  volume: BIGINT
+  interval: ENUM('1m', '5m', '10m', '30m', '1h', '1d')
+  ---
+  INDEX: (symbol, timestamp, interval)
+}
+
+' 백테스트 결과
+entity "backtest_results" as backtest_results {
+  primary_key(id): UUID
+  ---
+  foreign_key(strategy_id): UUID
+  foreign_key(user_id): UUID
+  name: VARCHAR(100)
+  start_date: DATE
+  end_date: DATE
+  initial_capital: DECIMAL(15,2)
+  final_capital: DECIMAL(15,2)
+  total_return: DECIMAL(8,4)
+  annual_return: DECIMAL(8,4)
+  max_drawdown: DECIMAL(8,4)
+  sharpe_ratio: DECIMAL(6,4)
+  sortino_ratio: DECIMAL(6,4)
+  win_rate: DECIMAL(5,4)
+  profit_loss_ratio: DECIMAL(6,4)
+  total_trades: INTEGER
+  winning_trades: INTEGER
+  losing_trades: INTEGER
+  avg_holding_period: DECIMAL(6,2)
+  results_detail: JSONB
+  created_at: TIMESTAMP
+}
+
+' 백테스트 거래 기록
+entity "backtest_trades" as backtest_trades {
+  primary_key(id): UUID
+  ---
+  foreign_key(backtest_id): UUID
+  symbol: VARCHAR(10)
+  side: ENUM('buy', 'sell')
+  quantity: INTEGER
+  price: DECIMAL(12,2)
+  commission: DECIMAL(12,2)
+  trade_date: DATE
+  signal_reason: JSONB
+  created_at: TIMESTAMP
+}
+
+' 계좌 스냅샷
+entity "account_snapshots" as account_snapshots {
+  primary_key(id): UUID
+  ---
+  foreign_key(user_id): UUID
+  total_assets: DECIMAL(15,2)
+  cash_balance: DECIMAL(15,2)
+  stock_value: DECIMAL(15,2)
+  realized_pnl: DECIMAL(12,2)
+  unrealized_pnl: DECIMAL(12,2)
+  total_pnl: DECIMAL(12,2)
+  daily_return: DECIMAL(8,4)
+  cumulative_return: DECIMAL(8,4)
+  snapshot_date: DATE
+  created_at: TIMESTAMP
+  ---
+  UNIQUE: (user_id, snapshot_date)
+}
+
+' 알림
+entity "notifications" as notifications {
+  primary_key(id): UUID
+  ---
+  foreign_key(user_id): UUID
+  notification_type: ENUM('trade', 'signal', 'risk', 'system')
+  title: VARCHAR(200)
+  message: TEXT
+  is_read: BOOLEAN
+  created_at: TIMESTAMP
+}
+
+' Relationships
+users ||--o{ strategies : "owns"
+users ||--o{ orders : "places"
+users ||--o{ trades : "executes"
+users ||--o{ holdings : "holds"
+users ||--o{ backtest_results : "runs"
+users ||--o{ account_snapshots : "has"
+users ||--o{ notifications : "receives"
+
+strategies ||--o{ signals : "generates"
+strategies ||--o{ backtest_results : "tests"
+
+signals ||--o| orders : "triggers"
+
+orders ||--o{ trades : "results in"
+
+backtest_results ||--o{ backtest_trades : "contains"
+
+@enduml

@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "kis-code-assistant": {
+      "url": "https://server.smithery.ai/@KISOpenAPI/kis-code-assistant-mcp/mcp",
+      "description": "KIS Open API Code Assistant - 한국투자증권 API 검색 및 코드 생성 지원"
+    }
+  }
+}

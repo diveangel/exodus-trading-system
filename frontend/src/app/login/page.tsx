@@ -40,14 +40,11 @@ export default function LoginPage() {
     setIsLoading(true)
 
     try {
-      // Login
+      // Login - response already includes user info
       const authResponse = await authApi.login(data)
 
-      // Get user info
-      const user = await authApi.getCurrentUser()
-
-      // Save to store
-      setAuth(user, authResponse.access_token, authResponse.refresh_token)
+      // Save to store (user is already in the login response)
+      setAuth(authResponse.user, authResponse.access_token, authResponse.refresh_token)
 
       // Redirect to dashboard
       router.push('/dashboard')

@@ -16,6 +16,12 @@ class UserRole(str, enum.Enum):
     VIEWER = "viewer"
 
 
+class TradingMode(str, enum.Enum):
+    """Trading mode enumeration."""
+    MOCK = "MOCK"  # 모의투자
+    REAL = "REAL"  # 실전투자
+
+
 class User(Base):
     """User model for authentication and profile management."""
 
@@ -41,6 +47,12 @@ class User(Base):
     kis_app_secret: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     kis_account_number: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
     kis_account_code: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)
+    has_kis_credentials: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    kis_trading_mode: Mapped[TradingMode] = mapped_column(
+        SQLEnum(TradingMode, name="trading_mode", native_enum=False),
+        default=TradingMode.MOCK,
+        nullable=False
+    )
 
     # Status
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)

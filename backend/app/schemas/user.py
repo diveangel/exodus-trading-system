@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import Optional
 from pydantic import BaseModel, EmailStr, ConfigDict, Field
 
-from app.models.user import UserRole
+from app.models.user import UserRole, TradingMode
 
 
 # Base schema with common fields
@@ -49,6 +49,7 @@ class UserKISUpdate(BaseModel):
     kis_app_secret: str
     kis_account_number: str
     kis_account_code: str
+    kis_trading_mode: TradingMode = TradingMode.MOCK
 
 
 # Schema for user response (without sensitive data)
@@ -69,6 +70,7 @@ class UserDetailResponse(UserResponse):
     """Schema for detailed user response including KIS account info."""
     kis_account_number: Optional[str] = None
     kis_account_code: Optional[str] = None
+    kis_trading_mode: TradingMode = TradingMode.MOCK
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -86,6 +88,18 @@ class Token(BaseModel):
     access_token: str
     refresh_token: str
     token_type: str = "bearer"
+
+
+# Schema for login response (includes token and user info)
+class LoginResponse(Token):
+    """Schema for login response with user information."""
+    user: UserResponse
+
+
+# Schema for refresh token request
+class RefreshTokenRequest(BaseModel):
+    """Schema for refresh token request."""
+    refresh_token: str
 
 
 # Schema for token data

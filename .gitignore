@@ -91,3 +91,5 @@ htmlcov/
 *.tmp
 *.bak
 *.swp
+github_token
+.github_token

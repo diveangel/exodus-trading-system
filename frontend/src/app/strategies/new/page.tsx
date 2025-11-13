@@ -16,7 +16,7 @@ import { StrategyType, STRATEGY_TYPE_LABELS } from '@/types/strategy'
 const strategySchema = z.object({
   name: z.string().min(1, '전략 이름을 입력해주세요'),
   description: z.string().min(1, '전략 설명을 입력해주세요'),
-  type: z.enum(['momentum', 'mean_reversion', 'breakout', 'arbitrage', 'custom']),
+  type: z.enum(['MOMENTUM', 'MEAN_REVERSION', 'BREAKOUT', 'CUSTOM']),
   parameters: z.record(z.any()),
 })
 
@@ -25,7 +25,7 @@ type StrategyFormData = z.infer<typeof strategySchema>
 export default function NewStrategyPage() {
   const router = useRouter()
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [selectedType, setSelectedType] = useState<StrategyType>('momentum')
+  const [selectedType, setSelectedType] = useState<StrategyType>('MOMENTUM')
 
   const {
     register,
@@ -35,7 +35,7 @@ export default function NewStrategyPage() {
   } = useForm<StrategyFormData>({
     resolver: zodResolver(strategySchema),
     defaultValues: {
-      type: 'momentum',
+      type: 'MOMENTUM',
       parameters: {},
     },
   })
@@ -66,7 +66,7 @@ export default function NewStrategyPage() {
   // Dynamic parameter fields based on strategy type
   const renderParameterFields = () => {
     switch (selectedType) {
-      case 'momentum':
+      case 'MOMENTUM':
         return (
           <>
             <div className="space-y-2">
@@ -98,7 +98,7 @@ export default function NewStrategyPage() {
             </div>
           </>
         )
-      case 'mean_reversion':
+      case 'MEAN_REVERSION':
         return (
           <>
             <div className="space-y-2">
@@ -133,7 +133,7 @@ export default function NewStrategyPage() {
             </div>
           </>
         )
-      case 'breakout':
+      case 'BREAKOUT':
         return (
           <>
             <div className="space-y-2">
@@ -163,26 +163,7 @@ export default function NewStrategyPage() {
             </div>
           </>
         )
-      case 'arbitrage':
-        return (
-          <>
-            <div className="space-y-2">
-              <Label htmlFor="threshold">스프레드 임계값 (%)</Label>
-              <Input
-                id="threshold"
-                type="number"
-                step="0.001"
-                placeholder="1.5"
-                defaultValue="1.5"
-                {...register('parameters.threshold')}
-              />
-              <p className="text-xs text-muted-foreground">
-                차익거래 진입 기준
-              </p>
-            </div>
-          </>
-        )
-      case 'custom':
+      case 'CUSTOM':
         return (
           <div className="space-y-2">
             <Label htmlFor="custom_params">커스텀 파라미터 (JSON)</Label>

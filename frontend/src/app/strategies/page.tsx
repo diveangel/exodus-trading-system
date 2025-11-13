@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { DashboardLayout } from '@/components/layout/DashboardLayout'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -13,98 +13,77 @@ import {
   TrendingUp,
   TrendingDown,
   MoreVertical,
+  Loader2,
+  AlertCircle,
+  RefreshCw,
 } from 'lucide-react'
 import {
   Strategy,
+  StrategyStatus,
   STRATEGY_TYPE_LABELS,
   STRATEGY_STATUS_LABELS,
   STRATEGY_STATUS_COLORS,
 } from '@/types/strategy'
+import { strategyApi } from '@/lib/strategyApi'
 
 export default function StrategiesPage() {
   const router = useRouter()
-  const [statusFilter, setStatusFilter] = useState<string>('all')
+  const [statusFilter, setStatusFilter] = useState<StrategyStatus | 'all'>('all')
+  const [strategies, setStrategies] = useState<Strategy[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [isRefreshing, setIsRefreshing] = useState(false)
 
-  // TODO: Replace with actual data from API
-  const strategies: Strategy[] = [
-    {
-      id: 1,
-      name: '모멘텀 전략 A',
-      description: '20일 이동평균선을 활용한 모멘텀 전략',
-      type: 'momentum',
-      status: 'active',
-      parameters: { period: 20, threshold: 0.02 },
-      created_at: '2024-01-15T09:00:00Z',
-      updated_at: '2024-01-20T14:30:00Z',
-      user_id: 1,
-      is_active: true,
-      total_profit_loss: 234000,
-      profit_loss_percent: 2.34,
-      total_trades: 45,
-      win_rate: 62.5,
-      sharpe_ratio: 1.85,
-      max_drawdown: -5.2,
-    },
-    {
-      id: 2,
-      name: '평균회귀 전략 B',
-      description: 'RSI 기반 과매수/과매도 구간 매매 전략',
-      type: 'mean_reversion',
-      status: 'active',
-      parameters: { rsi_period: 14, oversold: 30, overbought: 70 },
-      created_at: '2024-01-10T10:00:00Z',
-      updated_at: '2024-01-18T11:20:00Z',
-      user_id: 1,
-      is_active: true,
-      total_profit_loss: 189000,
-      profit_loss_percent: 1.89,
-      total_trades: 38,
-      win_rate: 58.3,
-      sharpe_ratio: 1.62,
-      max_drawdown: -4.8,
-    },
-    {
-      id: 3,
-      name: '변동성 돌파 전략 C',
-      description: '전일 변동폭 기반 돌파 매매 전략',
-      type: 'breakout',
-      status: 'paused',
-      parameters: { k: 0.5, stop_loss: 0.02 },
-      created_at: '2024-01-05T08:30:00Z',
-      updated_at: '2024-01-22T16:00:00Z',
-      user_id: 1,
-      is_active: false,
-      total_profit_loss: 100000,
-      profit_loss_percent: 1.0,
-      total_trades: 25,
-      win_rate: 55.0,
-      sharpe_ratio: 1.45,
-      max_drawdown: -6.1,
-    },
-    {
-      id: 4,
-      name: '차익거래 전략 D',
-      description: '코스피-코스닥 지수 스프레드 전략',
-      type: 'arbitrage',
-      status: 'stopped',
-      parameters: { threshold: 0.015 },
-      created_at: '2023-12-20T15:00:00Z',
-      updated_at: '2024-01-15T09:45:00Z',
-      user_id: 1,
-      is_active: false,
-      total_profit_loss: -45000,
-      profit_loss_percent: -0.45,
-      total_trades: 18,
-      win_rate: 44.4,
-      sharpe_ratio: 0.82,
-      max_drawdown: -8.3,
-    },
-  ]
+  const fetchStrategies = async () => {
+    try {
+      setError(null)
+      const response = await strategyApi.listStrategies(
+        1,
+        100,
+        statusFilter === 'all' ? undefined : statusFilter
+      )
+      setStrategies(response.strategies)
+    } catch (err: any) {
+      console.error('Failed to fetch strategies:', err)
+      setError(err.response?.data?.detail || '전략 목록을 불러오는데 실패했습니다.')
+    } finally {
+      setIsLoading(false)
+      setIsRefreshing(false)
+    }
+  }
 
-  const filteredStrategies =
-    statusFilter === 'all'
-      ? strategies
-      : strategies.filter((s) => s.status === statusFilter)
+  useEffect(() => {
+    fetchStrategies()
+  }, [statusFilter])
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true)
+    await fetchStrategies()
+  }
+
+  const handleActivate = async (strategyId: number, e: React.MouseEvent) => {
+    e.stopPropagation()
+    try {
+      await strategyApi.activateStrategy(strategyId)
+      await fetchStrategies()
+    } catch (err: any) {
+      console.error('Failed to activate strategy:', err)
+      alert(err.response?.data?.detail || '전략 활성화에 실패했습니다.')
+    }
+  }
+
+  const handleDeactivate = async (strategyId: number, e: React.MouseEvent) => {
+    e.stopPropagation()
+    try {
+      await strategyApi.deactivateStrategy(strategyId)
+      await fetchStrategies()
+    } catch (err: any) {
+      console.error('Failed to deactivate strategy:', err)
+      alert(err.response?.data?.detail || '전략 비활성화에 실패했습니다.')
+    }
+  }
+
+  const filteredStrategies = strategies
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('ko-KR', {
@@ -122,6 +101,47 @@ export default function StrategiesPage() {
     router.push('/strategies/new')
   }
 
+  if (isLoading) {
+    return (
+      <DashboardLayout>
+        <div className="flex items-center justify-center h-96">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      </DashboardLayout>
+    )
+  }
+
+  if (error) {
+    return (
+      <DashboardLayout>
+        <div className="space-y-6">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">전략 관리</h1>
+            <p className="text-muted-foreground">
+              트레이딩 전략을 생성하고 관리하세요
+            </p>
+          </div>
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex flex-col items-center justify-center py-12">
+                <AlertCircle className="h-12 w-12 text-red-500 mb-4" />
+                <p className="text-lg font-semibold mb-2">전략 목록을 불러올 수 없습니다</p>
+                <p className="text-sm text-muted-foreground mb-4">{error}</p>
+                <Button onClick={() => {
+                  setError(null)
+                  setIsLoading(true)
+                  fetchStrategies()
+                }}>
+                  다시 시도
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </DashboardLayout>
+    )
+  }
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
@@ -133,10 +153,21 @@ export default function StrategiesPage() {
               트레이딩 전략을 생성하고 관리하세요
             </p>
           </div>
-          <Button onClick={handleCreateStrategy} className="flex items-center gap-2">
-            <Plus className="h-4 w-4" />
-            새 전략 생성
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={handleRefresh}
+              disabled={isRefreshing}
+              className="flex items-center gap-2"
+            >
+              <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+              새로고침
+            </Button>
+            <Button onClick={handleCreateStrategy} className="flex items-center gap-2">
+              <Plus className="h-4 w-4" />
+              새 전략 생성
+            </Button>
+          </div>
         </div>
 
         {/* Filter Tabs */}
@@ -151,25 +182,25 @@ export default function StrategiesPage() {
                 전체
               </Button>
               <Button
-                variant={statusFilter === 'active' ? 'default' : 'outline'}
+                variant={statusFilter === 'ACTIVE' ? 'default' : 'outline'}
                 size="sm"
-                onClick={() => setStatusFilter('active')}
+                onClick={() => setStatusFilter('ACTIVE')}
               >
                 운영중
               </Button>
               <Button
-                variant={statusFilter === 'paused' ? 'default' : 'outline'}
+                variant={statusFilter === 'INACTIVE' ? 'default' : 'outline'}
                 size="sm"
-                onClick={() => setStatusFilter('paused')}
+                onClick={() => setStatusFilter('INACTIVE')}
               >
-                일시정지
+                비활성
               </Button>
               <Button
-                variant={statusFilter === 'stopped' ? 'default' : 'outline'}
+                variant={statusFilter === 'BACKTESTING' ? 'default' : 'outline'}
                 size="sm"
-                onClick={() => setStatusFilter('stopped')}
+                onClick={() => setStatusFilter('BACKTESTING')}
               >
-                중지됨
+                백테스트중
               </Button>
             </div>
           </CardContent>
@@ -197,14 +228,16 @@ export default function StrategiesPage() {
                         {STRATEGY_STATUS_LABELS[strategy.status]}
                       </span>
                       <span className="inline-flex items-center rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-blue-700">
-                        {STRATEGY_TYPE_LABELS[strategy.type]}
+                        {STRATEGY_TYPE_LABELS[strategy.strategy_type]}
                       </span>
                     </div>
 
                     {/* Description */}
-                    <p className="text-sm text-muted-foreground">
-                      {strategy.description}
-                    </p>
+                    {strategy.description && (
+                      <p className="text-sm text-muted-foreground">
+                        {strategy.description}
+                      </p>
+                    )}
 
                     {/* Metrics */}
                     <div className="grid grid-cols-2 gap-4 md:grid-cols-4 lg:grid-cols-6">
@@ -262,41 +295,25 @@ export default function StrategiesPage() {
 
                   {/* Actions */}
                   <div className="ml-4 flex gap-2">
-                    {strategy.status === 'active' && (
+                    {strategy.status === 'ACTIVE' && (
                       <Button
                         variant="outline"
                         size="icon"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          // TODO: Pause strategy
-                        }}
+                        onClick={(e) => handleDeactivate(strategy.id, e)}
+                        title="비활성화"
                       >
                         <Pause className="h-4 w-4" />
                       </Button>
                     )}
-                    {(strategy.status === 'paused' ||
-                      strategy.status === 'stopped') && (
+                    {(strategy.status === 'INACTIVE' ||
+                      strategy.status === 'BACKTESTING') && (
                       <Button
                         variant="outline"
                         size="icon"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          // TODO: Start strategy
-                        }}
+                        onClick={(e) => handleActivate(strategy.id, e)}
+                        title="활성화"
                       >
                         <Play className="h-4 w-4" />
-                      </Button>
-                    )}
-                    {strategy.status === 'active' && (
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          // TODO: Stop strategy
-                        }}
-                      >
-                        <StopCircle className="h-4 w-4" />
                       </Button>
                     )}
                   </div>

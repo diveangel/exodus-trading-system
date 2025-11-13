@@ -12,6 +12,7 @@ import {
   Settings,
   X,
   LineChart,
+  Search,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
@@ -30,6 +31,11 @@ const menuItems = [
     title: '시장 데이터',
     href: '/market',
     icon: LineChart,
+  },
+  {
+    title: '종목 탐색',
+    href: '/stocks',
+    icon: Search,
   },
   {
     title: '전략 관리',

@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { authApi } from '@/lib/authApi'
 import { useAuthStore } from '@/store/authStore'
 import { LogIn, Loader2 } from 'lucide-react'
@@ -17,6 +18,7 @@ import { LogIn, Loader2 } from 'lucide-react'
 const loginSchema = z.object({
   email: z.string().email('유효한 이메일을 입력해주세요'),
   password: z.string().min(8, '비밀번호는 최소 8자 이상이어야 합니다'),
+  kis_trading_mode: z.enum(['MOCK', 'REAL']).default('MOCK'),
 })
 
 type LoginFormData = z.infer<typeof loginSchema>
@@ -30,10 +32,17 @@ export default function LoginPage() {
   const {
     register,
     handleSubmit,
+    watch,
+    setValue,
     formState: { errors },
   } = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
+    defaultValues: {
+      kis_trading_mode: 'MOCK',
+    },
   })
+
+  const tradingMode = watch('kis_trading_mode')
 
   const onSubmit = async (data: LoginFormData) => {
     setError(null)
@@ -103,6 +112,35 @@ export default function LoginPage() {
               {errors.password && (
                 <p className="text-sm text-red-500">{errors.password.message}</p>
               )}
+            </div>
+
+            <div className="space-y-2">
+              <Label>거래 모드</Label>
+              <RadioGroup
+                value={tradingMode}
+                onValueChange={(value) => setValue('kis_trading_mode', value as 'MOCK' | 'REAL')}
+                disabled={isLoading}
+                className="flex gap-4"
+              >
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="MOCK" id="mock" />
+                  <Label htmlFor="mock" className="cursor-pointer font-normal">
+                    모의투자
+                  </Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="REAL" id="real" />
+                  <Label htmlFor="real" className="cursor-pointer font-normal">
+                    실전투자
+                  </Label>
+                </div>
+              </RadioGroup>
+              <p className="text-xs text-muted-foreground">
+                {tradingMode === 'MOCK'
+                  ? '모의투자 계정으로 로그인합니다 (실제 자금 없이 거래 테스트)'
+                  : '실전투자 계정으로 로그인합니다 (실제 계좌로 거래 실행)'
+                }
+              </p>
             </div>
           </CardContent>
 

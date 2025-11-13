@@ -6,6 +6,11 @@ export interface Stock {
   standard_code: string;
   name: string;
   market_type: 'KOSPI' | 'KOSDAQ';
+  dept?: string | null;
+  sector?: string | null;
+  industry?: string | null;
+  market_cap?: number | null;
+  listing_date?: string | null;
   created_at: string;
   updated_at: string;
 }

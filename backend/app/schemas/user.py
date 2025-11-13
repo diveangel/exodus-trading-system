@@ -22,11 +22,8 @@ class UserCreate(BaseModel):
     password: str = Field(..., min_length=8, max_length=100)
     full_name: str = Field(..., min_length=1, max_length=100)
 
-    # Optional KIS API credentials
-    kis_app_key: Optional[str] = None
-    kis_app_secret: Optional[str] = None
-    kis_account_number: Optional[str] = None
-    kis_account_code: Optional[str] = None
+    # Optional KIS API credentials (not used during registration)
+    # Users should set credentials in Settings page after registration
 
 
 # Schema for updating user
@@ -35,21 +32,26 @@ class UserUpdate(BaseModel):
     full_name: Optional[str] = Field(None, min_length=1, max_length=100)
     password: Optional[str] = Field(None, min_length=8, max_length=100)
 
-    # KIS API credentials
-    kis_app_key: Optional[str] = None
-    kis_app_secret: Optional[str] = None
-    kis_account_number: Optional[str] = None
-    kis_account_code: Optional[str] = None
+    # KIS API credentials (deprecated, use mode-specific endpoints)
+    pass
 
 
-# Schema for updating KIS credentials only
-class UserKISUpdate(BaseModel):
-    """Schema for updating Korea Investment API credentials."""
-    kis_app_key: str
-    kis_app_secret: str
-    kis_account_number: str
-    kis_account_code: str
-    kis_trading_mode: TradingMode = TradingMode.MOCK
+# Schema for updating Real trading KIS credentials
+class RealKISCredentialsUpdate(BaseModel):
+    """Schema for updating Real trading KIS credentials."""
+    real_app_key: str
+    real_app_secret: str
+    real_account_number: str
+    real_account_code: str
+
+
+# Schema for updating Mock trading KIS credentials
+class MockKISCredentialsUpdate(BaseModel):
+    """Schema for updating Mock trading KIS credentials."""
+    mock_app_key: str
+    mock_app_secret: str
+    mock_account_number: str
+    mock_account_code: str
 
 
 # Schema for user response (without sensitive data)
@@ -58,7 +60,9 @@ class UserResponse(UserBase):
     id: int
     is_active: bool
     is_verified: bool
-    has_kis_credentials: bool = False
+    has_real_credentials: bool = False
+    has_mock_credentials: bool = False
+    kis_trading_mode: TradingMode = TradingMode.MOCK
     created_at: datetime
     updated_at: datetime
 
@@ -68,9 +72,13 @@ class UserResponse(UserBase):
 # Schema for detailed user response (with KIS account info)
 class UserDetailResponse(UserResponse):
     """Schema for detailed user response including KIS account info."""
-    kis_account_number: Optional[str] = None
-    kis_account_code: Optional[str] = None
-    kis_trading_mode: TradingMode = TradingMode.MOCK
+    # Real trading account info (masked)
+    real_account_number: Optional[str] = None
+    real_account_code: Optional[str] = None
+
+    # Mock trading account info (masked)
+    mock_account_number: Optional[str] = None
+    mock_account_code: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -80,6 +88,7 @@ class UserLogin(BaseModel):
     """Schema for user login."""
     email: EmailStr
     password: str
+    kis_trading_mode: TradingMode = TradingMode.MOCK
 
 
 # Schema for token response

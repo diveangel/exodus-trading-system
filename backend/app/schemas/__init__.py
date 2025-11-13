@@ -3,7 +3,8 @@
 from app.schemas.user import (
     UserCreate,
     UserUpdate,
-    UserKISUpdate,
+    RealKISCredentialsUpdate,
+    MockKISCredentialsUpdate,
     UserResponse,
     UserDetailResponse,
     UserLogin,
@@ -60,7 +61,8 @@ __all__ = [
     # User
     "UserCreate",
     "UserUpdate",
-    "UserKISUpdate",
+    "RealKISCredentialsUpdate",
+    "MockKISCredentialsUpdate",
     "UserResponse",
     "UserDetailResponse",
     "UserLogin",

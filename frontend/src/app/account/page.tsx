@@ -55,17 +55,18 @@ export default function AccountPage() {
   }
 
   // Parse balance data
-  const accountSummary = balanceData ? {
-    total_balance: parseFloat(balanceData.output1.tot_evlu_amt || '0'),
-    cash_balance: parseFloat(balanceData.output1.dnca_tot_amt || '0'),
-    available_balance: parseFloat(balanceData.output1.prvs_rcdl_excc_amt || '0'),
-    stock_value: parseFloat(balanceData.output1.evlu_amt_smtl_amt || '0'),
-    total_profit_loss: parseFloat(balanceData.output1.evlu_pfls_smtl_amt || '0'),
-    purchase_total: parseFloat(balanceData.output1.pchs_amt_smtl_amt || '0'),
+  // KIS API: output2[0] = 계좌 요약 정보, output1 = 보유 종목 리스트
+  const accountSummary = balanceData && balanceData.output2 && balanceData.output2.length > 0 ? {
+    total_balance: parseFloat(balanceData.output2[0].tot_evlu_amt || '0'),
+    cash_balance: parseFloat(balanceData.output2[0].dnca_tot_amt || '0'),
+    available_balance: parseFloat(balanceData.output2[0].prvs_rcdl_excc_amt || '0'),
+    stock_value: parseFloat(balanceData.output2[0].evlu_amt_smtl_amt || '0'),
+    total_profit_loss: parseFloat(balanceData.output2[0].evlu_pfls_smtl_amt || '0'),
+    purchase_total: parseFloat(balanceData.output2[0].pchs_amt_smtl_amt || '0'),
   } : null
 
   // Parse holdings data
-  const holdings = balanceData ? balanceData.output2.map((holding, index) => ({
+  const holdings = balanceData && balanceData.output1 ? balanceData.output1.map((holding, index) => ({
     id: index + 1,
     symbol: holding.prdt_name,
     code: holding.pdno,

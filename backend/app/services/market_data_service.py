@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.market_data import MarketData, TimeInterval
 from app.schemas.market_data import MarketDataCreate
-from app.services.kis_client import KISClient
+from app.services.kis_quotation import KISQuotation
 
 logger = logging.getLogger(__name__)
 
@@ -114,7 +114,7 @@ class MarketDataService:
     @staticmethod
     async def collect_daily_data(
         db: AsyncSession,
-        kis_client: KISClient,
+        kis_client: KISQuotation,
         symbol: str,
         period: str = "D"
     ) -> List[MarketData]:
@@ -178,7 +178,7 @@ class MarketDataService:
     @staticmethod
     async def collect_minute_data(
         db: AsyncSession,
-        kis_client: KISClient,
+        kis_client: KISQuotation,
         symbol: str,
         interval: TimeInterval
     ) -> List[MarketData]:

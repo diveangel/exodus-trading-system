@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { DashboardLayout } from '@/components/layout/DashboardLayout'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -14,44 +14,121 @@ import {
   Trash2,
   TrendingUp,
   TrendingDown,
+  Loader2,
+  AlertCircle,
 } from 'lucide-react'
 import {
   Strategy,
+  ExecuteStrategyResponse,
   STRATEGY_TYPE_LABELS,
   STRATEGY_STATUS_LABELS,
   STRATEGY_STATUS_COLORS,
 } from '@/types/strategy'
+import { Stock } from '@/types/stock'
+import { strategyApi } from '@/lib/strategyApi'
+import { MultiStockSelector } from '@/components/strategy/MultiStockSelector'
 
 export default function StrategyDetailPage() {
   const router = useRouter()
   const params = useParams()
-  const strategyId = params.id as string
+  const strategyId = parseInt(params.id as string)
 
-  // TODO: Fetch strategy data from API
-  const strategy: Strategy = {
-    id: parseInt(strategyId),
-    name: '모멘텀 전략 A',
-    description: '20일 이동평균선을 활용한 모멘텀 전략',
-    type: 'momentum',
-    status: 'active',
-    parameters: {
-      period: 20,
-      threshold: 0.02,
-      max_position_size: 1000000,
-      max_positions: 5,
-      stop_loss_percent: 5.0,
-      take_profit_percent: 10.0,
-    },
-    created_at: '2024-01-15T09:00:00Z',
-    updated_at: '2024-01-20T14:30:00Z',
-    user_id: 1,
-    is_active: true,
-    total_profit_loss: 234000,
-    profit_loss_percent: 2.34,
-    total_trades: 45,
-    win_rate: 62.5,
-    sharpe_ratio: 1.85,
-    max_drawdown: -5.2,
+  const [strategy, setStrategy] = useState<Strategy | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  // Strategy execution states
+  const [selectedStocks, setSelectedStocks] = useState<Stock[]>([])
+  const [isExecuting, setIsExecuting] = useState(false)
+  const [executionResult, setExecutionResult] = useState<ExecuteStrategyResponse | null>(null)
+  const [executionError, setExecutionError] = useState<string | null>(null)
+
+  useEffect(() => {
+    const fetchStrategy = async () => {
+      try {
+        setError(null)
+        const data = await strategyApi.getStrategy(strategyId)
+        setStrategy(data)
+      } catch (err: any) {
+        console.error('Failed to fetch strategy:', err)
+        setError(err.response?.data?.detail || '전략 정보를 불러오는데 실패했습니다.')
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    fetchStrategy()
+  }, [strategyId])
+
+  const handleActivate = async () => {
+    if (!strategy) return
+    try {
+      const updated = await strategyApi.activateStrategy(strategy.id)
+      setStrategy(updated)
+    } catch (err: any) {
+      alert(err.response?.data?.detail || '전략 활성화에 실패했습니다.')
+    }
+  }
+
+  const handleDeactivate = async () => {
+    if (!strategy) return
+    try {
+      const updated = await strategyApi.deactivateStrategy(strategy.id)
+      setStrategy(updated)
+    } catch (err: any) {
+      alert(err.response?.data?.detail || '전략 비활성화에 실패했습니다.')
+    }
+  }
+
+  const handleDelete = async () => {
+    if (!strategy) return
+    if (!confirm('정말로 이 전략을 삭제하시겠습니까?')) return
+
+    try {
+      await strategyApi.deleteStrategy(strategy.id)
+      router.push('/strategies')
+    } catch (err: any) {
+      alert(err.response?.data?.detail || '전략 삭제에 실패했습니다.')
+    }
+  }
+
+  if (isLoading) {
+    return (
+      <DashboardLayout>
+        <div className="flex items-center justify-center h-96">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      </DashboardLayout>
+    )
+  }
+
+  if (error || !strategy) {
+    return (
+      <DashboardLayout>
+        <div className="space-y-6">
+          <Button
+            variant="ghost"
+            onClick={() => router.push('/strategies')}
+            className="flex items-center gap-2"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            전략 목록으로
+          </Button>
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex flex-col items-center justify-center py-12">
+                <AlertCircle className="h-12 w-12 text-red-500 mb-4" />
+                <p className="text-lg font-semibold mb-2">전략을 불러올 수 없습니다</p>
+                <p className="text-sm text-muted-foreground mb-4">{error}</p>
+                <Button onClick={() => router.push('/strategies')}>
+                  전략 목록으로
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </DashboardLayout>
+    )
   }
 
   const recentTrades = [
@@ -111,30 +188,25 @@ export default function StrategyDetailPage() {
     })
   }
 
-  const handleStart = () => {
-    // TODO: Call API to start strategy
-    console.log('Starting strategy:', strategyId)
-  }
-
-  const handlePause = () => {
-    // TODO: Call API to pause strategy
-    console.log('Pausing strategy:', strategyId)
-  }
-
-  const handleStop = () => {
-    // TODO: Call API to stop strategy
-    console.log('Stopping strategy:', strategyId)
-  }
-
   const handleEdit = () => {
     router.push(`/strategies/${strategyId}/edit`)
   }
 
-  const handleDelete = () => {
-    // TODO: Show confirmation dialog and delete strategy
-    if (confirm('정말로 이 전략을 삭제하시겠습니까?')) {
-      console.log('Deleting strategy:', strategyId)
-      router.push('/strategies')
+  const handleExecuteStrategy = async () => {
+    if (!strategy || selectedStocks.length === 0) return
+
+    setIsExecuting(true)
+    setExecutionError(null)
+
+    try {
+      const symbols = selectedStocks.map(stock => stock.symbol)
+      const result = await strategyApi.executeStrategy(strategy.id, symbols)
+      setExecutionResult(result)
+    } catch (err: any) {
+      console.error('Strategy execution error:', err)
+      setExecutionError(err.response?.data?.detail || '전략 실행 중 오류가 발생했습니다.')
+    } finally {
+      setIsExecuting(false)
     }
   }
 
@@ -160,46 +232,37 @@ export default function StrategyDetailPage() {
                   {STRATEGY_STATUS_LABELS[strategy.status]}
                 </span>
                 <span className="inline-flex items-center rounded-full bg-blue-100 px-3 py-1 text-sm font-medium text-blue-700">
-                  {STRATEGY_TYPE_LABELS[strategy.type]}
+                  {STRATEGY_TYPE_LABELS[strategy.strategy_type]}
                 </span>
               </div>
-              <p className="text-muted-foreground">{strategy.description}</p>
+              {strategy.description && (
+                <p className="text-muted-foreground">{strategy.description}</p>
+              )}
             </div>
           </div>
 
           {/* Action Buttons */}
           <div className="flex gap-2">
-            {strategy.status === 'active' && (
-              <>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handlePause}
-                  className="flex items-center gap-2"
-                >
-                  <Pause className="h-4 w-4" />
-                  일시정지
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleStop}
-                  className="flex items-center gap-2"
-                >
-                  <StopCircle className="h-4 w-4" />
-                  중지
-                </Button>
-              </>
+            {strategy.status === 'ACTIVE' && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleDeactivate}
+                className="flex items-center gap-2"
+              >
+                <Pause className="h-4 w-4" />
+                비활성화
+              </Button>
             )}
-            {(strategy.status === 'paused' || strategy.status === 'stopped') && (
+            {(strategy.status === 'INACTIVE' || strategy.status === 'BACKTESTING') && (
               <Button
                 variant="default"
                 size="sm"
-                onClick={handleStart}
+                onClick={handleActivate}
                 className="flex items-center gap-2"
               >
                 <Play className="h-4 w-4" />
-                시작
+                활성화
               </Button>
             )}
             <Button
@@ -301,6 +364,141 @@ export default function StrategyDetailPage() {
           </Card>
         </div>
 
+        {/* Strategy Execution Section */}
+        <Card>
+          <CardHeader>
+            <CardTitle>전략 실행</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <MultiStockSelector
+              selectedStocks={selectedStocks}
+              onStocksChange={setSelectedStocks}
+            />
+
+            <Button
+              onClick={handleExecuteStrategy}
+              disabled={selectedStocks.length === 0 || isExecuting}
+              className="w-full"
+            >
+              {isExecuting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  실행 중...
+                </>
+              ) : (
+                <>
+                  <Play className="mr-2 h-4 w-4" />
+                  전략 실행 ({selectedStocks.length}개 종목)
+                </>
+              )}
+            </Button>
+
+            {executionError && (
+              <div className="p-3 bg-red-50 border border-red-200 rounded-md">
+                <p className="text-sm text-red-600">{executionError}</p>
+              </div>
+            )}
+
+            {executionResult && (
+              <div className="space-y-3 p-4 bg-muted rounded-md">
+                <h4 className="font-semibold">실행 결과</h4>
+                <div className="space-y-2">
+                  <div className="flex justify-between border-b pb-2">
+                    <span className="text-sm text-muted-foreground">전략</span>
+                    <span className="text-sm font-medium">
+                      {executionResult.strategy_name}
+                    </span>
+                  </div>
+                  <div className="flex justify-between border-b pb-2">
+                    <span className="text-sm text-muted-foreground">분석 종목</span>
+                    <span className="text-sm font-medium">
+                      {executionResult.total_symbols}개
+                    </span>
+                  </div>
+                  <div className="flex justify-between border-b pb-2">
+                    <span className="text-sm text-muted-foreground">총 신호 개수</span>
+                    <span className="text-sm font-medium">
+                      {executionResult.total_signals}개
+                    </span>
+                  </div>
+                  <div className="pt-2 text-xs text-muted-foreground">
+                    실행 시각: {formatDate(executionResult.executed_at)}
+                  </div>
+                </div>
+
+                {executionResult.signals.length > 0 && (
+                  <div className="mt-4 space-y-3">
+                    <h5 className="font-medium">생성된 신호</h5>
+                    {executionResult.signals.map((signal, index) => (
+                      <div key={index} className="p-3 border rounded-md bg-background">
+                        <div className="space-y-2">
+                          <div className="flex justify-between border-b pb-2">
+                            <span className="text-sm text-muted-foreground">
+                              {signal.symbol}
+                            </span>
+                            <span
+                              className={`text-sm font-semibold ${
+                                signal.signal_type === 'BUY'
+                                  ? 'text-blue-600'
+                                  : signal.signal_type === 'SELL'
+                                  ? 'text-red-600'
+                                  : 'text-gray-600'
+                              }`}
+                            >
+                              {signal.signal_type === 'BUY'
+                                ? '매수'
+                                : signal.signal_type === 'SELL'
+                                ? '매도'
+                                : '홀드'}
+                            </span>
+                          </div>
+                          <div className="flex justify-between border-b pb-2">
+                            <span className="text-sm text-muted-foreground">가격</span>
+                            <span className="text-sm font-medium">
+                              {formatCurrency(signal.price)}
+                            </span>
+                          </div>
+                          {signal.quantity && (
+                            <div className="flex justify-between border-b pb-2">
+                              <span className="text-sm text-muted-foreground">수량</span>
+                              <span className="text-sm font-medium">
+                                {signal.quantity.toLocaleString()}주
+                              </span>
+                            </div>
+                          )}
+                          <div className="flex justify-between border-b pb-2">
+                            <span className="text-sm text-muted-foreground">신뢰도</span>
+                            <span className="text-sm font-medium">
+                              {(signal.confidence * 100).toFixed(1)}%
+                            </span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-sm text-muted-foreground">사유</span>
+                            <span className="text-sm font-medium text-right ml-2">
+                              {signal.reason}
+                            </span>
+                          </div>
+                          <div className="pt-1 text-xs text-muted-foreground">
+                            {formatDate(signal.timestamp)}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {executionResult.signals.length === 0 && (
+                  <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-md">
+                    <p className="text-sm text-yellow-800">
+                      선택한 종목에서 매매 신호가 생성되지 않았습니다.
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
         {/* Performance Chart Placeholder */}
         <Card>
           <CardHeader>
@@ -371,7 +569,7 @@ export default function StrategyDetailPage() {
                 <div className="flex justify-between">
                   <span className="text-sm text-muted-foreground">활성 상태</span>
                   <span className="text-sm font-medium">
-                    {strategy.is_active ? '활성' : '비활성'}
+                    {STRATEGY_STATUS_LABELS[strategy.status]}
                   </span>
                 </div>
               </div>

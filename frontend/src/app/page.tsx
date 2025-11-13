@@ -2,20 +2,25 @@
 
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { useAuthStore } from '@/store/authStore'
 import { TrendingUp, BarChart3, Activity, Shield } from 'lucide-react'
 
 export default function Home() {
   const router = useRouter()
+  const [mounted, setMounted] = useState(false)
   const { isAuthenticated } = useAuthStore()
 
   useEffect(() => {
-    if (isAuthenticated) {
+    setMounted(true)
+  }, [])
+
+  useEffect(() => {
+    if (mounted && isAuthenticated) {
       router.push('/dashboard')
     }
-  }, [isAuthenticated, router])
+  }, [mounted, isAuthenticated, router])
 
   return (
     <main className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">

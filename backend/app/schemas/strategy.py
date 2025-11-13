@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import Optional, Dict, Any
 from pydantic import BaseModel, Field, ConfigDict
 
-from app.models.strategy import StrategyType
+from app.core.strategy.types import StrategyType, StrategyStatus
 
 
 # Base schema
@@ -29,7 +29,7 @@ class StrategyUpdate(BaseModel):
     description: Optional[str] = Field(None, max_length=500)
     strategy_type: Optional[StrategyType] = None
     parameters: Optional[Dict[str, Any]] = None
-    is_active: Optional[bool] = None
+    status: Optional[StrategyStatus] = None
 
 
 # Schema for strategy response
@@ -37,7 +37,7 @@ class StrategyResponse(StrategyBase):
     """Schema for strategy response."""
     id: int
     user_id: int
-    is_active: bool
+    status: StrategyStatus
     created_at: datetime
     updated_at: datetime
 
@@ -51,3 +51,34 @@ class StrategyListResponse(BaseModel):
     total: int
     page: int
     page_size: int
+
+
+# Schema for strategy execution request
+class StrategyExecuteRequest(BaseModel):
+    """Schema for executing strategy on multiple symbols."""
+    symbols: list[str] = Field(..., min_length=1, description="List of stock symbols to execute strategy on")
+    source: Optional[str] = Field(None, description="Source of symbols (manual, watchlist, screening)")
+
+
+# Schema for signal in execution response
+class SignalResponse(BaseModel):
+    """Schema for a single trading signal."""
+    timestamp: str
+    symbol: str
+    signal_type: str
+    price: float
+    quantity: Optional[int] = None
+    reason: Optional[str] = None
+    confidence: Optional[float] = None
+
+
+# Schema for strategy execution response
+class StrategyExecuteResponse(BaseModel):
+    """Schema for strategy execution response."""
+    strategy_id: int
+    strategy_name: str
+    symbols: list[str]
+    executed_at: str
+    signals: list[SignalResponse]
+    total_signals: int
+    total_symbols: int

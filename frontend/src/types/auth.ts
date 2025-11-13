@@ -9,7 +9,9 @@ export interface User {
   role: 'admin' | 'user' | 'viewer'
   is_active: boolean
   is_verified: boolean
-  has_kis_credentials: boolean
+  has_real_credentials: boolean
+  has_mock_credentials: boolean
+  kis_trading_mode: 'MOCK' | 'REAL'
   created_at: string
   updated_at: string
 }
@@ -17,6 +19,7 @@ export interface User {
 export interface LoginRequest {
   email: string
   password: string
+  kis_trading_mode: 'MOCK' | 'REAL'
 }
 
 export interface RegisterRequest {
@@ -29,6 +32,7 @@ export interface AuthResponse {
   access_token: string
   refresh_token: string
   token_type: string
+  user: User
 }
 
 export interface AuthState {

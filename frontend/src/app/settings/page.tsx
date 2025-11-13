@@ -6,6 +6,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import * as z from 'zod'
 import { DashboardLayout } from '@/components/layout/DashboardLayout'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -18,24 +19,34 @@ import {
   Eye,
   EyeOff,
   Loader2,
+  Trash2,
 } from 'lucide-react'
 import { accountApi } from '@/lib/accountApi'
+import { useAuthStore } from '@/store/authStore'
 
-const kisApiSchema = z.object({
+const realKisApiSchema = z.object({
   app_key: z.string().min(1, 'App Key를 입력해주세요'),
   app_secret: z.string().min(1, 'App Secret을 입력해주세요'),
   account_number: z.string().regex(/^\d{8}-\d{2}$/, '계좌번호 형식: 12345678-01'),
-  trading_mode: z.enum(['mock', 'real'], {
-    required_error: '거래 모드를 선택해주세요',
-  }),
 })
 
-type KisApiFormData = z.infer<typeof kisApiSchema>
+const mockKisApiSchema = z.object({
+  app_key: z.string().min(1, 'App Key를 입력해주세요'),
+  app_secret: z.string().min(1, 'App Secret을 입력해주세요'),
+  account_number: z.string().regex(/^\d{8}-\d{2}$/, '계좌번호 형식: 12345678-01'),
+})
+
+type RealKisApiFormData = z.infer<typeof realKisApiSchema>
+type MockKisApiFormData = z.infer<typeof mockKisApiSchema>
 
 export default function SettingsPage() {
-  const [showSecrets, setShowSecrets] = useState(false)
+  const { user } = useAuthStore()
+  const [showRealSecrets, setShowRealSecrets] = useState(false)
+  const [showMockSecrets, setShowMockSecrets] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
+  const [hasRealCredentials, setHasRealCredentials] = useState(false)
+  const [hasMockCredentials, setHasMockCredentials] = useState(false)
 
   // Notification settings
   const [emailNotifications, setEmailNotifications] = useState(true)
@@ -49,12 +60,21 @@ export default function SettingsPage() {
   const [maxPositions, setMaxPositions] = useState(5)
 
   const {
-    register: registerKis,
-    handleSubmit: handleSubmitKis,
-    formState: { errors: errorsKis },
-    reset: resetKis,
-  } = useForm<KisApiFormData>({
-    resolver: zodResolver(kisApiSchema),
+    register: registerReal,
+    handleSubmit: handleSubmitReal,
+    formState: { errors: errorsReal },
+    reset: resetReal,
+  } = useForm<RealKisApiFormData>({
+    resolver: zodResolver(realKisApiSchema),
+  })
+
+  const {
+    register: registerMock,
+    handleSubmit: handleSubmitMock,
+    formState: { errors: errorsMock },
+    reset: resetMock,
+  } = useForm<MockKisApiFormData>({
+    resolver: zodResolver(mockKisApiSchema),
   })
 
   // Load KIS credentials on mount
@@ -64,17 +84,27 @@ export default function SettingsPage() {
         setIsLoading(true)
         const credentials = await accountApi.getKISCredentials()
 
-        // Split account_number into account number and code
-        const accountParts = credentials.kis_account_number?.split('-') || []
-        const accountNumber = accountParts.length === 2
-          ? credentials.kis_account_number
+        setHasRealCredentials(credentials.has_real_credentials)
+        setHasMockCredentials(credentials.has_mock_credentials)
+
+        // Format account numbers
+        const realAccountNumber = credentials.real_account_number && credentials.real_account_code
+          ? `${credentials.real_account_number}-${credentials.real_account_code}`
+          : ''
+        const mockAccountNumber = credentials.mock_account_number && credentials.mock_account_code
+          ? `${credentials.mock_account_number}-${credentials.mock_account_code}`
           : ''
 
-        resetKis({
+        resetReal({
           app_key: '', // Don't load actual keys for security
           app_secret: '',
-          account_number: accountNumber,
-          trading_mode: credentials.kis_trading_mode || 'mock',
+          account_number: realAccountNumber,
+        })
+
+        resetMock({
+          app_key: '', // Don't load actual keys for security
+          app_secret: '',
+          account_number: mockAccountNumber,
         })
       } catch (error) {
         console.error('Failed to load KIS credentials:', error)
@@ -84,26 +114,95 @@ export default function SettingsPage() {
     }
 
     loadKISCredentials()
-  }, [resetKis])
+  }, [resetReal, resetMock])
 
-  const onSubmitKisApi = async (data: KisApiFormData) => {
+  const onSubmitRealKisApi = async (data: RealKisApiFormData) => {
     setIsSaving(true)
     try {
       // Parse account number and code
       const [accountNumber, accountCode] = data.account_number.split('-')
 
-      await accountApi.updateKISCredentials({
-        kis_app_key: data.app_key,
-        kis_app_secret: data.app_secret,
-        kis_account_number: accountNumber,
-        kis_account_code: accountCode,
-        kis_trading_mode: data.trading_mode,
+      await accountApi.updateRealKISCredentials({
+        real_app_key: data.app_key,
+        real_app_secret: data.app_secret,
+        real_account_number: accountNumber,
+        real_account_code: accountCode,
       })
 
-      alert('API 설정이 저장되었습니다.')
+      setHasRealCredentials(true)
+      alert('실전투자 API 설정이 저장되었습니다.')
     } catch (error: any) {
-      console.error('Failed to save KIS API credentials:', error)
+      console.error('Failed to save Real KIS API credentials:', error)
       alert(error.response?.data?.detail || '저장에 실패했습니다.')
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  const onSubmitMockKisApi = async (data: MockKisApiFormData) => {
+    setIsSaving(true)
+    try {
+      // Parse account number and code
+      const [accountNumber, accountCode] = data.account_number.split('-')
+
+      await accountApi.updateMockKISCredentials({
+        mock_app_key: data.app_key,
+        mock_app_secret: data.app_secret,
+        mock_account_number: accountNumber,
+        mock_account_code: accountCode,
+      })
+
+      setHasMockCredentials(true)
+      alert('모의투자 API 설정이 저장되었습니다.')
+    } catch (error: any) {
+      console.error('Failed to save Mock KIS API credentials:', error)
+      alert(error.response?.data?.detail || '저장에 실패했습니다.')
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  const handleDeleteRealCredentials = async () => {
+    if (!confirm('실전투자 API 인증 정보를 삭제하시겠습니까?')) {
+      return
+    }
+
+    setIsSaving(true)
+    try {
+      await accountApi.deleteRealKISCredentials()
+      setHasRealCredentials(false)
+      resetReal({
+        app_key: '',
+        app_secret: '',
+        account_number: '',
+      })
+      alert('실전투자 API 인증 정보가 삭제되었습니다.')
+    } catch (error: any) {
+      console.error('Failed to delete Real KIS credentials:', error)
+      alert(error.response?.data?.detail || '삭제에 실패했습니다.')
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  const handleDeleteMockCredentials = async () => {
+    if (!confirm('모의투자 API 인증 정보를 삭제하시겠습니까?')) {
+      return
+    }
+
+    setIsSaving(true)
+    try {
+      await accountApi.deleteMockKISCredentials()
+      setHasMockCredentials(false)
+      resetMock({
+        app_key: '',
+        app_secret: '',
+        account_number: '',
+      })
+      alert('모의투자 API 인증 정보가 삭제되었습니다.')
+    } catch (error: any) {
+      console.error('Failed to delete Mock KIS credentials:', error)
+      alert(error.response?.data?.detail || '삭제에 실패했습니다.')
     } finally {
       setIsSaving(false)
     }
@@ -165,9 +264,14 @@ export default function SettingsPage() {
           <p className="text-muted-foreground">
             시스템 설정 및 API 연동을 관리하세요
           </p>
+          {user && (
+            <p className="text-sm text-muted-foreground mt-2">
+              현재 거래 모드: <span className="font-semibold">{user.kis_trading_mode === 'REAL' ? '실전투자' : '모의투자'}</span>
+            </p>
+          )}
         </div>
 
-        {/* KIS API Settings */}
+        {/* KIS API Settings with Tabs */}
         <Card>
           <CardHeader>
             <div className="flex items-center gap-2">
@@ -176,130 +280,244 @@ export default function SettingsPage() {
             </div>
           </CardHeader>
           <CardContent>
-            <form onSubmit={handleSubmitKis(onSubmitKisApi)} className="space-y-4">
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="app_key">App Key *</Label>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setShowSecrets(!showSecrets)}
-                  >
-                    {showSecrets ? (
-                      <EyeOff className="h-4 w-4" />
-                    ) : (
-                      <Eye className="h-4 w-4" />
-                    )}
-                  </Button>
-                </div>
-                <Input
-                  id="app_key"
-                  type={showSecrets ? 'text' : 'password'}
-                  placeholder="App Key를 입력하세요"
-                  {...registerKis('app_key')}
-                />
-                {errorsKis.app_key && (
-                  <p className="text-sm text-red-600">
-                    {errorsKis.app_key.message}
-                  </p>
-                )}
+            {isLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
               </div>
+            ) : (
+              <Tabs defaultValue="mock" className="w-full">
+                <TabsList className="grid w-full grid-cols-2">
+                  <TabsTrigger value="mock">모의투자</TabsTrigger>
+                  <TabsTrigger value="real">실전투자</TabsTrigger>
+                </TabsList>
 
-              <div className="space-y-2">
-                <Label htmlFor="app_secret">App Secret *</Label>
-                <Input
-                  id="app_secret"
-                  type={showSecrets ? 'text' : 'password'}
-                  placeholder="App Secret을 입력하세요"
-                  {...registerKis('app_secret')}
-                />
-                {errorsKis.app_secret && (
-                  <p className="text-sm text-red-600">
-                    {errorsKis.app_secret.message}
-                  </p>
-                )}
-              </div>
+                {/* Mock Trading Tab */}
+                <TabsContent value="mock" className="space-y-4 mt-4">
+                  <div className="bg-blue-50 border border-blue-200 rounded-md p-3 mb-4">
+                    <p className="text-sm text-blue-800">
+                      모의투자는 실제 자금 없이 거래를 테스트할 수 있습니다. 한국투자증권 모의투자 API 키가 필요합니다.
+                    </p>
+                  </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="account_number">계좌번호 *</Label>
-                <Input
-                  id="account_number"
-                  type="text"
-                  placeholder="12345678-01"
-                  {...registerKis('account_number')}
-                />
-                {errorsKis.account_number && (
-                  <p className="text-sm text-red-600">
-                    {errorsKis.account_number.message}
-                  </p>
-                )}
-                <p className="text-xs text-muted-foreground">
-                  형식: 계좌번호-계좌상품코드 (예: 12345678-01)
-                </p>
-              </div>
+                  {hasMockCredentials && (
+                    <div className="bg-green-50 border border-green-200 rounded-md p-3 flex items-center justify-between">
+                      <p className="text-sm text-green-800">
+                        모의투자 API 인증 정보가 등록되어 있습니다.
+                      </p>
+                      <Button
+                        type="button"
+                        variant="destructive"
+                        size="sm"
+                        onClick={handleDeleteMockCredentials}
+                        disabled={isSaving}
+                      >
+                        <Trash2 className="h-4 w-4 mr-1" />
+                        삭제
+                      </Button>
+                    </div>
+                  )}
 
-              <div className="space-y-2">
-                <Label>거래 모드 *</Label>
-                <div className="flex gap-4">
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="radio"
-                      value="mock"
-                      {...registerKis('trading_mode')}
-                      className="w-4 h-4 text-primary focus:ring-primary"
-                    />
-                    <div>
-                      <p className="font-medium">모의투자</p>
+                  <form onSubmit={handleSubmitMock(onSubmitMockKisApi)} className="space-y-4">
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor="mock_app_key">App Key *</Label>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setShowMockSecrets(!showMockSecrets)}
+                        >
+                          {showMockSecrets ? (
+                            <EyeOff className="h-4 w-4" />
+                          ) : (
+                            <Eye className="h-4 w-4" />
+                          )}
+                        </Button>
+                      </div>
+                      <Input
+                        id="mock_app_key"
+                        type={showMockSecrets ? 'text' : 'password'}
+                        placeholder="모의투자 App Key를 입력하세요"
+                        {...registerMock('app_key')}
+                      />
+                      {errorsMock.app_key && (
+                        <p className="text-sm text-red-600">
+                          {errorsMock.app_key.message}
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="mock_app_secret">App Secret *</Label>
+                      <Input
+                        id="mock_app_secret"
+                        type={showMockSecrets ? 'text' : 'password'}
+                        placeholder="모의투자 App Secret을 입력하세요"
+                        {...registerMock('app_secret')}
+                      />
+                      {errorsMock.app_secret && (
+                        <p className="text-sm text-red-600">
+                          {errorsMock.app_secret.message}
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="mock_account_number">계좌번호 *</Label>
+                      <Input
+                        id="mock_account_number"
+                        type="text"
+                        placeholder="12345678-01"
+                        {...registerMock('account_number')}
+                      />
+                      {errorsMock.account_number && (
+                        <p className="text-sm text-red-600">
+                          {errorsMock.account_number.message}
+                        </p>
+                      )}
                       <p className="text-xs text-muted-foreground">
-                        실제 자금 없이 거래 테스트
+                        형식: 계좌번호-계좌상품코드 (예: 12345678-01)
                       </p>
                     </div>
-                  </label>
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="radio"
-                      value="real"
-                      {...registerKis('trading_mode')}
-                      className="w-4 h-4 text-primary focus:ring-primary"
-                    />
-                    <div>
-                      <p className="font-medium">실전투자</p>
+
+                    <div className="flex justify-between items-center pt-4 border-t">
+                      <div className="text-sm text-muted-foreground">
+                        <p>모의투자 API 키는 한국투자증권 홈페이지에서 발급받을 수 있습니다.</p>
+                        <a
+                          href="https://apiportal.koreainvestment.com/"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-primary hover:underline"
+                        >
+                          API 포털 바로가기 →
+                        </a>
+                      </div>
+                      <Button
+                        type="submit"
+                        disabled={isSaving}
+                        className="flex items-center gap-2"
+                      >
+                        <Save className="h-4 w-4" />
+                        {isSaving ? '저장 중...' : '저장'}
+                      </Button>
+                    </div>
+                  </form>
+                </TabsContent>
+
+                {/* Real Trading Tab */}
+                <TabsContent value="real" className="space-y-4 mt-4">
+                  <div className="bg-red-50 border border-red-200 rounded-md p-3 mb-4">
+                    <p className="text-sm text-red-800 font-semibold">
+                      ⚠️ 주의: 실전투자는 실제 계좌로 거래가 실행됩니다. 신중하게 설정하세요.
+                    </p>
+                  </div>
+
+                  {hasRealCredentials && (
+                    <div className="bg-green-50 border border-green-200 rounded-md p-3 flex items-center justify-between">
+                      <p className="text-sm text-green-800">
+                        실전투자 API 인증 정보가 등록되어 있습니다.
+                      </p>
+                      <Button
+                        type="button"
+                        variant="destructive"
+                        size="sm"
+                        onClick={handleDeleteRealCredentials}
+                        disabled={isSaving}
+                      >
+                        <Trash2 className="h-4 w-4 mr-1" />
+                        삭제
+                      </Button>
+                    </div>
+                  )}
+
+                  <form onSubmit={handleSubmitReal(onSubmitRealKisApi)} className="space-y-4">
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor="real_app_key">App Key *</Label>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setShowRealSecrets(!showRealSecrets)}
+                        >
+                          {showRealSecrets ? (
+                            <EyeOff className="h-4 w-4" />
+                          ) : (
+                            <Eye className="h-4 w-4" />
+                          )}
+                        </Button>
+                      </div>
+                      <Input
+                        id="real_app_key"
+                        type={showRealSecrets ? 'text' : 'password'}
+                        placeholder="실전투자 App Key를 입력하세요"
+                        {...registerReal('app_key')}
+                      />
+                      {errorsReal.app_key && (
+                        <p className="text-sm text-red-600">
+                          {errorsReal.app_key.message}
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="real_app_secret">App Secret *</Label>
+                      <Input
+                        id="real_app_secret"
+                        type={showRealSecrets ? 'text' : 'password'}
+                        placeholder="실전투자 App Secret을 입력하세요"
+                        {...registerReal('app_secret')}
+                      />
+                      {errorsReal.app_secret && (
+                        <p className="text-sm text-red-600">
+                          {errorsReal.app_secret.message}
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="real_account_number">계좌번호 *</Label>
+                      <Input
+                        id="real_account_number"
+                        type="text"
+                        placeholder="12345678-01"
+                        {...registerReal('account_number')}
+                      />
+                      {errorsReal.account_number && (
+                        <p className="text-sm text-red-600">
+                          {errorsReal.account_number.message}
+                        </p>
+                      )}
                       <p className="text-xs text-muted-foreground">
-                        실제 계좌로 거래 실행
+                        형식: 계좌번호-계좌상품코드 (예: 12345678-01)
                       </p>
                     </div>
-                  </label>
-                </div>
-                {errorsKis.trading_mode && (
-                  <p className="text-sm text-red-600">
-                    {errorsKis.trading_mode.message}
-                  </p>
-                )}
-              </div>
 
-              <div className="flex justify-between items-center pt-4 border-t">
-                <div className="text-sm text-muted-foreground">
-                  <p>API 키는 한국투자증권 홈페이지에서 발급받을 수 있습니다.</p>
-                  <a
-                    href="https://apiportal.koreainvestment.com/"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-primary hover:underline"
-                  >
-                    API 포털 바로가기 →
-                  </a>
-                </div>
-                <Button
-                  type="submit"
-                  disabled={isSaving}
-                  className="flex items-center gap-2"
-                >
-                  <Save className="h-4 w-4" />
-                  {isSaving ? '저장 중...' : '저장'}
-                </Button>
-              </div>
-            </form>
+                    <div className="flex justify-between items-center pt-4 border-t">
+                      <div className="text-sm text-muted-foreground">
+                        <p>실전투자 API 키는 한국투자증권 홈페이지에서 발급받을 수 있습니다.</p>
+                        <a
+                          href="https://apiportal.koreainvestment.com/"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-primary hover:underline"
+                        >
+                          API 포털 바로가기 →
+                        </a>
+                      </div>
+                      <Button
+                        type="submit"
+                        disabled={isSaving}
+                        className="flex items-center gap-2"
+                      >
+                        <Save className="h-4 w-4" />
+                        {isSaving ? '저장 중...' : '저장'}
+                      </Button>
+                    </div>
+                  </form>
+                </TabsContent>
+              </Tabs>
+            )}
           </CardContent>
         </Card>
 

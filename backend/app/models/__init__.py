@@ -7,6 +7,8 @@ from app.models.order import Order, Trade, OrderType, OrderSide, OrderStatus
 from app.models.holding import Holding
 from app.models.market_data import MarketData, TimeInterval
 from app.models.backtest import BacktestResult, BacktestTrade
+from app.models.stock import Stock
+from app.models.watchlist import Watchlist
 
 __all__ = [
     # User
@@ -32,4 +34,8 @@ __all__ = [
     # Backtest
     "BacktestResult",
     "BacktestTrade",
+    # Stock
+    "Stock",
+    # Watchlist
+    "Watchlist",
 ]

@@ -53,14 +53,6 @@ async def register(
         hashed_password=get_password_hash(user_data.password),
     )
 
-    # Add KIS credentials if provided
-    if user_data.kis_app_key:
-        user.kis_app_key = user_data.kis_app_key
-        user.kis_app_secret = user_data.kis_app_secret
-        user.kis_account_number = user_data.kis_account_number
-        user.kis_account_code = user_data.kis_account_code
-        user.has_kis_credentials = True
-
     db.add(user)
     await db.commit()
     await db.refresh(user)
@@ -94,6 +86,11 @@ async def login(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Inactive user",
         )
+
+    # Update trading mode for this session
+    user.kis_trading_mode = credentials.kis_trading_mode
+    await db.commit()
+    await db.refresh(user)
 
     # Create access token
     access_token = create_access_token(

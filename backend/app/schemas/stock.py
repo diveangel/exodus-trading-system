@@ -1,7 +1,7 @@
 """Stock schemas for API request/response."""
 
-from datetime import datetime
-from typing import Literal
+from datetime import datetime, date
+from typing import Literal, Optional
 
 from pydantic import BaseModel, Field
 
@@ -13,6 +13,11 @@ class StockBase(BaseModel):
     standard_code: str = Field(..., description="Standard code")
     name: str = Field(..., description="Korean stock name")
     market_type: Literal["KOSPI", "KOSDAQ"] = Field(..., description="Market type")
+    dept: Optional[str] = Field(None, description="KRX department (부문)")
+    sector: Optional[str] = Field(None, description="Sector classification")
+    industry: Optional[str] = Field(None, description="Industry classification")
+    market_cap: Optional[int] = Field(None, description="Market capitalization")
+    listing_date: Optional[date] = Field(None, description="Listing date")
 
 
 class StockCreate(StockBase):

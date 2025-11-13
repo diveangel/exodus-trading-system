@@ -43,11 +43,21 @@ class User(Base):
     )
 
     # Korea Investment API credentials (encrypted)
-    kis_app_key: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
-    kis_app_secret: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
-    kis_account_number: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
-    kis_account_code: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)
-    has_kis_credentials: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    # Real trading credentials
+    real_app_key: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    real_app_secret: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    real_account_number: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    real_account_code: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)
+    has_real_credentials: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
+    # Mock trading credentials
+    mock_app_key: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    mock_app_secret: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    mock_account_number: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    mock_account_code: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)
+    has_mock_credentials: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
+    # Current trading mode (selected at login)
     kis_trading_mode: Mapped[TradingMode] = mapped_column(
         SQLEnum(TradingMode, name="trading_mode", native_enum=False),
         default=TradingMode.MOCK,
@@ -94,6 +104,11 @@ class User(Base):
     )
     backtest_results: Mapped[List["BacktestResult"]] = relationship(
         "BacktestResult",
+        back_populates="user",
+        cascade="all, delete-orphan"
+    )
+    watchlists: Mapped[List["Watchlist"]] = relationship(
+        "Watchlist",
         back_populates="user",
         cascade="all, delete-orphan"
     )

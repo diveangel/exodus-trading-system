@@ -77,21 +77,18 @@ export function Navbar({ onMenuClick }: NavbarProps) {
         {/* Right side - User menu */}
         <div className="flex items-center gap-4">
           <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="ghost"
-                className="relative h-10 gap-2"
-                onClick={() => setDropdownOpen(!dropdownOpen)}
-              >
-                <Avatar className="h-8 w-8">
-                  <AvatarFallback className="bg-primary text-primary-foreground">
-                    {user ? getInitials(user.full_name) : 'U'}
-                  </AvatarFallback>
-                </Avatar>
-                <span className="hidden md:inline-block">
-                  {user?.full_name || 'User'}
-                </span>
-              </Button>
+            <DropdownMenuTrigger
+              className="relative h-10 gap-2 inline-flex items-center px-3 py-2 rounded-md hover:bg-accent"
+              onClick={() => setDropdownOpen(!dropdownOpen)}
+            >
+              <Avatar className="h-8 w-8">
+                <AvatarFallback className="bg-primary text-primary-foreground">
+                  {user ? getInitials(user.full_name) : 'U'}
+                </AvatarFallback>
+              </Avatar>
+              <span className="hidden md:inline-block">
+                {user?.full_name || 'User'}
+              </span>
             </DropdownMenuTrigger>
 
             {dropdownOpen && (
@@ -118,9 +115,8 @@ export function Navbar({ onMenuClick }: NavbarProps) {
                 <DropdownMenuSeparator />
 
                 <DropdownMenuItem
-                  onClick={handleLogout}
-                  disabled={isLoggingOut}
-                  className="text-red-600"
+                  onClick={isLoggingOut ? undefined : handleLogout}
+                  className={`text-red-600 ${isLoggingOut ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
                   <LogOut className="mr-2 h-4 w-4" />
                   <span>{isLoggingOut ? '로그아웃 중...' : '로그아웃'}</span>

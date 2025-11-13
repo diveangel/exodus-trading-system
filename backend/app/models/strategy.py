@@ -4,17 +4,9 @@ from datetime import datetime
 from typing import Optional, List, Dict, Any
 from sqlalchemy import String, Boolean, DateTime, Integer, ForeignKey, Enum as SQLEnum, JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-import enum
 
 from app.db.base import Base
-
-
-class StrategyType(str, enum.Enum):
-    """Strategy type enumeration."""
-    MOMENTUM = "momentum"
-    MEAN_REVERSION = "mean_reversion"
-    FACTOR = "factor"
-    CUSTOM = "custom"
+from app.core.strategy.types import StrategyType, StrategyStatus
 
 
 class Strategy(Base):
@@ -50,7 +42,11 @@ class Strategy(Base):
     )
 
     # Status
-    is_active: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    status: Mapped[StrategyStatus] = mapped_column(
+        SQLEnum(StrategyStatus, name="strategy_status", native_enum=False),
+        nullable=False,
+        default=StrategyStatus.INACTIVE
+    )
 
     # Timestamps
     created_at: Mapped[datetime] = mapped_column(

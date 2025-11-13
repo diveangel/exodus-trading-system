@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger
 
 from app.config import settings
-from app.api.v1 import auth, account, strategy, backtest, market, dashboard, stocks
+from app.api.v1 import auth, account, strategy, backtest, market, dashboard, stocks, watchlist
 from app.db.session import engine
 from app.db.base import Base
 from app.core.logging_config import setup_logging
@@ -76,6 +76,7 @@ app.include_router(strategy.router, prefix="/api/v1/strategies", tags=["Strategy
 app.include_router(backtest.router, prefix="/api/v1/backtest", tags=["Backtest"])
 app.include_router(market.router, prefix="/api/v1/market", tags=["Market"])
 app.include_router(stocks.router, prefix="/api/v1/stocks", tags=["Stocks"])
+app.include_router(watchlist.router, prefix="/api/v1/watchlists", tags=["Watchlist"])
 
 
 if __name__ == "__main__":

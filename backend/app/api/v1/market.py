@@ -17,6 +17,7 @@ from app.schemas.market_data import (
     PriceResponse
 )
 from app.services.kis_client import KISClient
+from app.services.kis_quotation import KISQuotation
 from app.services.market_data_service import MarketDataService
 
 router = APIRouter()
@@ -36,17 +37,35 @@ def get_kis_client(current_user: User = Depends(get_current_user)) -> KISClient:
     Raises:
         HTTPException: If user doesn't have KIS credentials
     """
-    if not current_user.has_kis_credentials:
-        raise HTTPException(
-            status_code=400,
-            detail="KIS credentials not configured. Please set up your KIS API credentials in settings."
-        )
+    from app.models.user import TradingMode
+
+    # Get credentials based on current trading mode
+    if current_user.kis_trading_mode == TradingMode.REAL:
+        if not current_user.has_real_credentials:
+            raise HTTPException(
+                status_code=400,
+                detail="Real trading API credentials not configured. Please set up your credentials in Settings."
+            )
+        app_key = current_user.real_app_key
+        app_secret = current_user.real_app_secret
+        account_number = current_user.real_account_number
+        account_code = current_user.real_account_code
+    else:  # MOCK mode
+        if not current_user.has_mock_credentials:
+            raise HTTPException(
+                status_code=400,
+                detail="Mock trading API credentials not configured. Please set up your credentials in Settings."
+            )
+        app_key = current_user.mock_app_key
+        app_secret = current_user.mock_app_secret
+        account_number = current_user.mock_account_number
+        account_code = current_user.mock_account_code
 
     return KISClient(
-        app_key=current_user.kis_app_key,
-        app_secret=current_user.kis_app_secret,
-        account_number=current_user.kis_account_number,
-        account_code=current_user.kis_account_code,
+        app_key=app_key,
+        app_secret=app_secret,
+        account_number=account_number,
+        account_code=account_code,
         trading_mode=current_user.kis_trading_mode.value
     )
 
@@ -75,10 +94,13 @@ async def collect_daily_market_data(
     try:
         logger.info(f"[Market API] Collecting daily data for {symbol}, period: {period}")
 
+        # Initialize KIS Quotation service
+        kis_quotation = KISQuotation(kis_client)
+
         # Collect data from KIS API
         market_data_list = await MarketDataService.collect_daily_data(
             db=db,
-            kis_client=kis_client,
+            kis_client=kis_quotation,
             symbol=symbol,
             period=period
         )
@@ -153,10 +175,13 @@ async def collect_minute_market_data(
     try:
         logger.info(f"[Market API] Collecting {interval} data for {symbol}")
 
+        # Initialize KIS Quotation service
+        kis_quotation = KISQuotation(kis_client)
+
         # Collect data from KIS API
         market_data_list = await MarketDataService.collect_minute_data(
             db=db,
-            kis_client=kis_client,
+            kis_client=kis_quotation,
             symbol=symbol,
             interval=interval
         )
@@ -281,8 +306,11 @@ async def get_current_price(
     try:
         logger.info(f"[Market API] Getting current price for {symbol}")
 
+        # Initialize KIS Quotation service
+        kis_quotation = KISQuotation(kis_client)
+
         # Get current price from KIS API
-        kis_response = await kis_client.get_current_price(symbol)
+        kis_response = await kis_quotation.get_current_price(symbol)
 
         if 'output' not in kis_response:
             raise HTTPException(
